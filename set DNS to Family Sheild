@@ -1,0 +1,39 @@
+*************************** Set Open Dns Family Sheild as DNS **************************************************
+
+
+# Ensure running as Administrator
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+    [Security.Principal.WindowsBuiltInRole] "Administrator")) {
+    Write-Warning "Please run this script as Administrator."
+    exit
+}
+
+$primaryDNS = "208.67.222.123"
+$secondaryDNS = "208.67.220.123"
+
+# Get all active network adapters with IPv4 enabled
+$adapters = Get-NetAdapter | Where-Object { $_.Status -eq "Up" } | ForEach-Object {
+    $adapter = $_
+    $ipv4 = Get-NetIPInterface -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue
+    if ($ipv4 -and $ipv4.Dhcp -eq "Disabled") {
+        # Set static DNS to OpenDNS FamilyShield
+        Set-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -ServerAddresses $primaryDNS, $secondaryDNS
+    }
+    elseif ($ipv4 -and $ipv4.Dhcp -eq "Enabled") {
+        # For DHCP enabled adapters, still set the DNS server statically which overrides DHCP DNS
+        Set-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -ServerAddresses $primaryDNS, $secondaryDNS
+    }
+}
+
+# Disable DNS dynamic update to prevent overwrites
+$regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
+$propertyName = "DisableDynamicUpdate"
+$propertyValue = 1
+
+If (-not (Test-Path $regPath)) {
+    New-Item -Path $regPath -Force | Out-Null
+}
+
+Set-ItemProperty -Path $regPath -Name $propertyName -Value $propertyValue -Type DWord
+
+Write-Output "OpenDNS FamilyShield DNS has been set permanently. Please reboot to apply changes."
