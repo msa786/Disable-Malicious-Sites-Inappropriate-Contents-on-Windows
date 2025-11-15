@@ -1,0 +1,24 @@
+******************************** Disable IPv6 **********************************************
+
+
+# Ensure running as Administrator
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(`
+  [Security.Principal.WindowsBuiltInRole] "Administrator"))
+{
+    Write-Warning "You need to run this script as Administrator."
+    exit
+}
+
+# Disable all IPv6 components except loopback interface (value 0xFF)
+$regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters"
+$propertyName = "DisabledComponents"
+$propertyValue = 0xFF
+
+# Create or set the registry key value
+If (-Not (Test-Path $regPath)) {
+    New-Item -Path $regPath -Force | Out-Null
+}
+
+Set-ItemProperty -Path $regPath -Name $propertyName -Value $propertyValue -Type DWord
+
+Write-Output "IPv6 has been disabled permanently. Please reboot for changes to take effect."
